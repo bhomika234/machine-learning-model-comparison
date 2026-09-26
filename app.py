@@ -1,50 +1,62 @@
+"""
+Bonus: Simple Streamlit prediction interface for the Credit Card Fraud
+Detection model saved in the notebook (best_model.pkl).
+
+Run with:
+    streamlit run app.py
+
+Make sure best_model.pkl is in the same folder as this script
+(it is produced by the "Best Model Save" section of the notebook).
+"""
+
 import streamlit as st
 import pandas as pd
 import joblib
 
-# Page configuration
-st.set_page_config(
-    page_title="ML Prediction App",
-    page_icon="🤖",
-    layout="centered"
+st.set_page_config(page_title="Fraud Detection", page_icon="💳")
+
+st.title("💳 Credit Card Fraud Prediction")
+st.write(
+    "Enter transaction details below and the trained Random Forest model "
+    "will predict whether the transaction is **Normal** or **Fraudulent**."
 )
 
-# Title
-st.title("🤖 Machine Learning Prediction App")
-st.write("Random Forest based prediction system")
-
-# Load trained model
+# ---- Load the trained model ----
 @st.cache_resource
 def load_model():
     return joblib.load("best_model.pkl")
 
-model = load_model()
+try:
+    model = load_model()
+except FileNotFoundError:
+    st.error(
+        "best_model.pkl not found. Run the notebook's 'Best Model Save' "
+        "section first so this file is created in the same folder."
+    )
+    st.stop()
 
-st.success("Model loaded successfully!")
+# ---- Build inputs dynamically from the features the model was trained on ----
+st.subheader("Transaction Details")
 
-st.subheader("Enter Input Data")
+feature_names = list(model.feature_names_in_)
+input_values = {}
 
-# -------------------------------------------------
-# IMPORTANT:
-# Replace these input fields with your actual
-# dataset features.
-# -------------------------------------------------
+# Two columns so the form isn't too long
+col1, col2 = st.columns(2)
+for i, feature in enumerate(feature_names):
+    target_col = col1 if i % 2 == 0 else col2
+    input_values[feature] = target_col.number_input(feature, value=0.0, format="%.4f")
 
-feature_1 = st.number_input("Feature 1", value=0.0)
-feature_2 = st.number_input("Feature 2", value=0.0)
-feature_3 = st.number_input("Feature 3", value=0.0)
-
-# Prediction button
+# ---- Predict ----
 if st.button("Predict"):
+    input_df = pd.DataFrame([input_values])[feature_names]
+    prediction = model.predict(input_df)[0]
+    proba = model.predict_proba(input_df)[0][1] if hasattr(model, "predict_proba") else None
 
-    input_data = pd.DataFrame({
-        "Feature_1": [feature_1],
-        "Feature_2": [feature_2],
-        "Feature_3": [feature_3]
-    })
+    if prediction == 1:
+        st.error(f"⚠️ Prediction: **Fraudulent Transaction**")
+    else:
+        st.success(f"✅ Prediction: **Normal Transaction**")
 
-    prediction = model.predict(input_data)
-
-    st.subheader("Prediction Result")
-
-    st.success(f"Prediction: {prediction[0]}")
+    if proba is not None:
+        st.write(f"Fraud probability: **{proba:.2%}**")
